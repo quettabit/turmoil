@@ -1,6 +1,7 @@
 use std::{ops::RangeInclusive, time::SystemTime};
 
 use rand::{RngCore, SeedableRng};
+use tokio::runtime::RngSeed;
 
 use crate::*;
 
@@ -167,6 +168,12 @@ impl Builder {
     /// Enables the tokio I/O driver.
     pub fn enable_tokio_io(&mut self) -> &mut Self {
         self.config.enable_tokio_io = true;
+        self
+    }
+
+    /// Set tokio runtime builder's RNG seed.
+    pub fn set_tokio_rng_seed(&mut self, rng_seed: RngSeed) -> &mut Self {
+        self.config.tokio_rng_seed = Some(rng_seed);
         self
     }
 

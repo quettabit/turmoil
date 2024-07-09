@@ -3,6 +3,7 @@ use std::{
     ops::RangeInclusive,
     time::{Duration, SystemTime},
 };
+use tokio::runtime::RngSeed;
 
 /// Configuration for a simulation.
 ///
@@ -39,6 +40,9 @@ pub(crate) struct Config {
 
     /// Enables tokio IO driver
     pub(crate) enable_tokio_io: bool,
+
+    /// Tokio runtime RNG seed
+    pub(crate) tokio_rng_seed: Option<RngSeed>,
 
     /// Enables running of host/client code in random order at each
     /// simulation step
@@ -95,6 +99,7 @@ impl Default for Config {
             tcp_capacity: 64,
             udp_capacity: 64,
             enable_tokio_io: false,
+            tokio_rng_seed: None,
             random_node_order: false,
         }
     }

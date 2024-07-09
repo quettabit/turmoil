@@ -3,10 +3,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::Future;
+use tokio::runtime::RngSeed;
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio::task::LocalSet;
-use tokio::time::{Duration, Instant, sleep};
+use tokio::time::{sleep, Duration, Instant};
 
 use super::Result;
 
@@ -52,14 +53,21 @@ pub(crate) struct Rt<'a> {
 
     /// Whether io is enabled on this runtime.
     enable_io: bool,
+
+    rng_seed: Option<RngSeed>,
 }
 
 impl<'a> Rt<'a> {
-    pub(crate) fn client<F>(nodename: Arc<str>, client: F, enable_io: bool) -> Self
+    pub(crate) fn client<F>(
+        nodename: Arc<str>,
+        client: F,
+        enable_io: bool,
+        rng_seed: Option<RngSeed>,
+    ) -> Self
     where
         F: Future<Output = Result> + 'static,
     {
-        let (tokio, local) = init(enable_io);
+        let (tokio, local) = init(enable_io, rng_seed.clone());
 
         let handle = with(&tokio, &local, || tokio::task::spawn_local(client));
 
@@ -70,15 +78,21 @@ impl<'a> Rt<'a> {
             nodename,
             handle: Some(handle),
             enable_io,
+            rng_seed,
         }
     }
 
-    pub(crate) fn host<F, Fut>(nodename: Arc<str>, software: F, enable_io: bool) -> Self
+    pub(crate) fn host<F, Fut>(
+        nodename: Arc<str>,
+        software: F,
+        enable_io: bool,
+        rng_seed: Option<RngSeed>,
+    ) -> Self
     where
         F: Fn() -> Fut + 'a,
         Fut: Future<Output = Result> + 'static,
     {
-        let (tokio, local) = init(enable_io);
+        let (tokio, local) = init(enable_io, rng_seed.clone());
 
         let software: Software = Box::new(move || Box::pin(software()));
         let handle = with(&tokio, &local, || tokio::task::spawn_local(software()));
@@ -90,11 +104,12 @@ impl<'a> Rt<'a> {
             nodename,
             handle: Some(handle),
             enable_io,
+            rng_seed,
         }
     }
 
     pub(crate) fn no_software() -> Self {
-        let (tokio, local) = init(false);
+        let (tokio, local) = init(false, None);
 
         Self {
             kind: Kind::NoSoftware,
@@ -103,6 +118,7 @@ impl<'a> Rt<'a> {
             nodename: String::new().into(),
             handle: None,
             enable_io: false,
+            rng_seed: None,
         }
     }
 
@@ -207,18 +223,23 @@ impl<'a> Rt<'a> {
     ///
     /// Both the [`Runtime`] and [`LocalSet`] are replaced with new instances.
     fn cancel_tasks(&mut self) {
-        let (tokio, local) = init(self.enable_io);
+        let (tokio, local) = init(self.enable_io, self.rng_seed.clone());
 
         _ = mem::replace(&mut self.tokio, tokio);
         drop(mem::replace(&mut self.local, local));
     }
 }
 
-fn init(enable_io: bool) -> (Runtime, LocalSet) {
+fn init(enable_io: bool, rng_seed: Option<RngSeed>) -> (Runtime, LocalSet) {
     let mut tokio_builder = tokio::runtime::Builder::new_current_thread();
 
     #[cfg(tokio_unstable)]
-    tokio_builder.unhandled_panic(tokio::runtime::UnhandledPanic::ShutdownRuntime);
+    {
+        tokio_builder.unhandled_panic(tokio::runtime::UnhandledPanic::ShutdownRuntime);
+        if let Some(seed) = rng_seed {
+            tokio_builder.rng_seed(seed);
+        }
+    }
 
     if enable_io {
         tokio_builder.enable_io();
