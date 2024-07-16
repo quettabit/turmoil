@@ -335,7 +335,11 @@ impl<'a> Sim<'a> {
     ///
     /// Returns whether or not all clients have completed.
     pub fn step(&mut self) -> Result<bool> {
+        let mut log_more = false;
         if self.steps % 100 == 0 {
+            log_more = true;
+        }
+        if log_more {
             tracing::info!(target: TRACING_TARGET, "step {}", self.steps);
         }
 
@@ -376,6 +380,9 @@ impl<'a> Sim<'a> {
 
                 // Set the current host (see method docs)
                 world.current = Some(addr);
+                if log_more {
+                    tracing::info!("{}", addr);
+                }
 
                 world.current_host_mut().timer.now(rt.now());
             }
