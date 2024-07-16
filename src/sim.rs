@@ -10,8 +10,8 @@ use indexmap::IndexMap;
 use tokio::time::Duration;
 use tracing::Level;
 
-use crate::{Config, for_pairs, LinksIter, Result, Rt, ToIpAddr, ToIpAddrs, TRACING_TARGET, World};
 use crate::host::HostTimer;
+use crate::{for_pairs, Config, LinksIter, Result, Rt, ToIpAddr, ToIpAddrs, World, TRACING_TARGET};
 
 /// A handle for interacting with the simulation.
 pub struct Sim<'a> {
@@ -147,7 +147,7 @@ impl<'a> Sim<'a> {
         self.run_with_hosts(addrs, |addr, rt| {
             rt.bounce();
 
-            tracing::trace!(target: TRACING_TARGET, addr = ?addr, "Bounce");
+            tracing::info!(target: TRACING_TARGET, addr = ?addr, "Bounce");
         });
     }
 
@@ -335,7 +335,9 @@ impl<'a> Sim<'a> {
     ///
     /// Returns whether or not all clients have completed.
     pub fn step(&mut self) -> Result<bool> {
-        tracing::trace!("step {}", self.steps);
+        if self.steps % 100 == 0 {
+            tracing::info!(target: TRACING_TARGET, "step {}", self.steps);
+        }
 
         let tick = self.config.tick;
         let mut is_finished = true;
@@ -407,16 +409,16 @@ impl<'a> Sim<'a> {
 
 #[cfg(test)]
 mod test {
+    use std::future;
     use std::{
         net::{IpAddr, Ipv4Addr},
         rc::Rc,
         sync::{
-            Arc,
             atomic::{AtomicU64, Ordering},
+            Arc,
         },
         time::Duration,
     };
-    use std::future;
 
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
@@ -425,9 +427,9 @@ mod test {
     };
 
     use crate::{
-        Builder, elapsed,
-        hold,
-        net::{TcpListener, TcpStream}, Result, sim_elapsed, World,
+        elapsed, hold,
+        net::{TcpListener, TcpStream},
+        sim_elapsed, Builder, Result, World,
     };
 
     #[test]
